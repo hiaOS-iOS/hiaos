@@ -29,8 +29,10 @@ window.HIA = window.HIA || {};
   function netErr(err) {
     const m = String((err && err.message) || err);
     if (/Failed to fetch|NetworkError|Load failed/i.test(m)) {
-      return 'Could not reach the Ollama endpoint. Check your connection, the API key, ' +
-             'and the base URL in Settings (CORS may require a proxy URL).';
+      const onDirect = /(^|\/\/)([^/]*\.)?ollama\.com/i.test(base());
+      return 'Could not reach ' + base() + ' from the browser. ' + (onDirect
+        ? 'Browsers can\'t call ollama.com directly (no CORS). In Settings → Base URL, point this at your proxy and leave the API key blank.'
+        : 'Check your connection and that the proxy URL is correct and awake (free hosts sleep when idle — the first request can take ~30–60s).');
     }
     return m;
   }

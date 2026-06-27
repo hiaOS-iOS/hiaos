@@ -521,6 +521,10 @@ window.HIA = window.HIA || {};
           r.models.forEach((p) => presetRow.append(el('button', { className: 'chip', text: p, onclick: () => { model.value = p; S().set('model', p); } })));
           toast(r.models.length + ' models loaded');
         } });
+        const test = el('button', { className: 'btn ghost small', html: HIA.icon('check') + 'Test connection', onclick: async () => {
+          const t = toast('Testing ' + O().base() + '…', true); const r = await O().listModels(); t.remove();
+          toast(r.ok ? ('Connected ✓ — ' + (r.models.length || 0) + ' models') : r.error);
+        } });
         const keyWrap = el('div', { className: 'key-wrap' });
         const keyIn = el('input', { className: 'field', type: 'password', value: S().get('apiKey'), placeholder: 'Ollama API key' });
         keyIn.addEventListener('input', () => S().set('apiKey', keyIn.value.trim()));
@@ -528,7 +532,9 @@ window.HIA = window.HIA || {};
         keyWrap.append(keyIn, eye);
         const baseIn = el('input', { className: 'field', value: S().get('baseUrl'), placeholder: 'https://ollama.com' });
         baseIn.addEventListener('input', () => S().set('baseUrl', baseIn.value.trim()));
-        sec.append(label('Model'), model, modelNote, el('div', { className: 'field-label', text: 'Suggestions — tap to fill' }), presetRow, refresh, label('API key'), keyWrap, label('Base URL (advanced)'), baseIn);
+        const baseNote = el('div', { className: 'muted small', html: 'Browsers can\'t call <b>ollama.com</b> directly (CORS). Point this at your proxy and leave the key blank.' });
+        sec.append(label('Model'), model, modelNote, el('div', { className: 'field-label', text: 'Suggestions — tap to fill' }), presetRow,
+          el('div', { className: 'chip-row wrap' }, refresh, test), label('API key'), keyWrap, label('Base URL — your proxy'), baseIn, baseNote);
       }));
 
       // --- Identity ---
