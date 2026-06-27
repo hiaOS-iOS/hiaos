@@ -4,10 +4,14 @@ window.HIA = window.HIA || {};
 (function () {
   const KEY = 'hiaos-ios-state-v1';
   const VERSION = 2;
+  // Default endpoint = the hiaOS proxy (Flask detector-api), which injects the
+  // Ollama key server-side and adds CORS. Browsers can't call ollama.com directly,
+  // so this makes the app work out of the box with no setup. Override in Settings.
+  const PROXY = 'https://detector-api-7jcy.onrender.com';
   const DEFAULTS = {
     version: VERSION,
     apiKey: '',
-    baseUrl: 'https://ollama.com',
+    baseUrl: PROXY,
     model: '',
     userName: '',
     accent: '#0a84ff',
@@ -39,6 +43,9 @@ window.HIA = window.HIA || {};
       s.currentConvo = id;
     }
     s.chat = [];
+    // ollama.com can't be reached from a browser (no CORS); anyone still on the
+    // old default is broken, so upgrade them to the working proxy automatically.
+    if (!s.baseUrl || /(^|\/\/)([^/]*\.)?ollama\.com/i.test(s.baseUrl)) s.baseUrl = PROXY;
     s.version = VERSION;
     return s;
   }
