@@ -70,11 +70,21 @@ npx http-server . -p 5610 -c-1
 # then open http://localhost:5610
 ```
 
-## A note on CORS
+## Important: CORS (you'll likely need the proxy)
 
-Calls go straight from the browser to `https://ollama.com/api/*` with your bearer
-key. If a network blocks cross-origin calls, set a **Base URL** (Settings →
-Model & connection) pointing at a small CORS proxy that forwards to Ollama.
+The app calls `https://ollama.com/api/*` directly with your Bearer key — which is
+exactly what Ollama's official client does. But Ollama's cloud API **does not
+send CORS headers**, so a *browser* (Safari/Chrome) blocks the cross-origin call.
+The Python/CLI examples work because they run server-side, where CORS doesn't
+apply; a PWA runs in the browser, where it does.
+
+**Fix:** deploy the tiny Cloudflare Worker in [`proxy/`](proxy/) (~2 minutes,
+free), then set **Settings → Base URL** to your Worker URL. It forwards to
+`ollama.com` and adds the CORS headers. Your key only passes through your own
+Worker. See [`proxy/README.md`](proxy/README.md).
+
+> If Ollama later enables CORS on `ollama.com`, the default Base URL will just
+> work and the proxy becomes unnecessary.
 
 ## Tech
 
