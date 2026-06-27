@@ -1,6 +1,6 @@
 /* hiaOS — service worker. Caches the app shell for offline launch; never caches
    API calls (those go straight to the Ollama endpoint over the network). */
-const CACHE = 'hiaos-ios-v3';
+const CACHE = 'hiaos-ios-v4';
 const ASSETS = [
   './', './index.html', './styles.css', './manifest.webmanifest',
   './js/icons.js', './js/store.js', './js/ollama.js', './js/apps.js', './js/shell.js',
