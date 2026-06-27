@@ -22,31 +22,51 @@ window.HIA = window.HIA || {};
   }
   function persona() {
     const name = S().get('userName');
-    return 'You are hia, the helpful assistant living inside hiaOS, a pocket operating ' +
-      'system on iPhone. Be warm, concise and practical. Use light Markdown.' +
+    const custom = (S().pref('personality') || '').trim();
+    return (custom || 'You are hia, the helpful assistant living inside hiaOS, a pocket ' +
+      'operating system on iPhone. Be warm, concise and practical. Use light Markdown.') +
       (name ? ' The user\'s name is ' + name + '.' : '');
   }
 
-  /* ============================ hia (chat) ============================ */
+  /* conversation helpers (shared by the chat app) */
+  function newConvoObj() {
+    return { id: 'c' + Date.now() + Math.random().toString(36).slice(2, 5), title: '', messages: [], updated: Date.now() };
+  }
+  function curConvo() {
+    const s = S().s;
+    let c = s.conversations.find((x) => x.id === s.currentConvo);
+    if (!c) c = s.conversations[0];
+    if (!c) { c = newConvoObj(); s.conversations.push(c); }
+    s.currentConvo = c.id; return c;
+  }
+
+  /* ============================ hia (chat, multi-conversation) ============================ */
   function buildChat(body, ctx) {
     bind();
     body.classList.add('app-chat');
+    const header = el('div', { className: 'chat-head' });
+    const menuBtn = el('button', { className: 'ch-btn', html: HIA.icon('menu'), title: 'Conversations' });
+    const titleEl = el('div', { className: 'ch-title' });
+    const newBtn = el('button', { className: 'ch-btn', html: HIA.icon('plus'), title: 'New chat' });
+    header.append(menuBtn, titleEl, el('span', { className: 'spacer' }), newBtn);
     const log = el('div', { className: 'chat-log' });
     const row = el('form', { className: 'chat-input' });
-    const clear = el('button', { className: 'ci-icon', type: 'button', title: 'New chat', html: HIA.icon('trash') });
     const ta = el('textarea', { className: 'ci-text', rows: 1, placeholder: 'Message hia…' });
     const send = el('button', { className: 'ci-send', type: 'submit', html: HIA.icon('send') });
-    row.append(clear, ta, send);
-    body.append(log, row);
+    row.append(ta, send);
+    const backdrop = el('div', { className: 'chat-drawer-bg' });
+    const drawer = el('div', { className: 'chat-drawer' });
+    body.append(header, log, row, backdrop, drawer);
 
     let controller = null;
-    const msgs = () => S().s.chat;
+    const msgs = () => curConvo().messages;
 
+    function renderTitle() { titleEl.textContent = curConvo().title || 'New chat'; }
     function render() {
+      renderTitle();
       log.innerHTML = '';
       if (!msgs().length) {
-        log.append(el('div', { className: 'chat-empty', html:
-          HIA.icon('orbit') + '<p>Ask me anything, or tell hiaOS what to do.</p>' }));
+        log.append(el('div', { className: 'chat-empty', html: HIA.icon('orbit') + '<p>Ask me anything, or tell hiaOS what to do.</p>' }));
       }
       msgs().forEach((m) => {
         const b = el('div', { className: 'bubble ' + m.role });
@@ -55,33 +75,63 @@ window.HIA = window.HIA || {};
       });
       log.scrollTop = log.scrollHeight;
     }
-    function setSending(on) {
-      send.innerHTML = on ? HIA.icon('stop') : HIA.icon('send');
-      send.classList.toggle('stopping', on);
+    function setSending(on) { send.innerHTML = on ? HIA.icon('stop') : HIA.icon('send'); send.classList.toggle('stopping', on); }
+
+    /* drawer (conversation list) */
+    function openDrawer() { renderDrawer(); drawer.classList.add('open'); backdrop.classList.add('on'); }
+    function closeDrawer() { drawer.classList.remove('open'); backdrop.classList.remove('on'); }
+    function renderDrawer() {
+      drawer.innerHTML = '';
+      const head = el('div', { className: 'cd-head' });
+      head.append(el('span', { text: 'Conversations' }), el('span', { className: 'spacer' }),
+        el('button', { className: 'btn small', html: HIA.icon('plus') + 'New', onclick: () => { startNew(); closeDrawer(); } }));
+      drawer.append(head);
+      const list = el('div', { className: 'list' });
+      const s = S().s;
+      if (!s.conversations.length) list.append(el('p', { className: 'muted', text: 'No conversations yet.' }));
+      s.conversations.slice().sort((a, b) => b.updated - a.updated).forEach((c) => {
+        const item = el('button', { className: 'list-item' + (c.id === s.currentConvo ? ' on' : ''), onclick: () => { S().set('currentConvo', c.id); closeDrawer(); render(); } });
+        item.append(el('div', { className: 'li-main' },
+          el('div', { className: 'li-title', text: c.title || 'New chat' }),
+          el('div', { className: 'li-sub', text: (c.messages[c.messages.length - 1] || {}).content ? (c.messages[c.messages.length - 1].content).slice(0, 60) : 'Empty' })));
+        item.append(el('span', { className: 'li-del', html: HIA.icon('trash'), onclick: (ev) => { ev.stopPropagation(); delConvo(c.id); } }));
+        list.append(item);
+      });
+      drawer.append(list);
+    }
+    function startNew() {
+      const s = S().s;
+      const empty = s.conversations.find((c) => !c.messages.length);
+      if (empty) S().set('currentConvo', empty.id);
+      else { const c = newConvoObj(); s.conversations.push(c); S().set('currentConvo', c.id); }
+      render(); ta.focus();
+    }
+    function delConvo(id) {
+      S().update((s) => { s.conversations = s.conversations.filter((c) => c.id !== id); if (s.currentConvo === id) s.currentConvo = (s.conversations[0] || {}).id || ''; });
+      renderDrawer(); render();
     }
 
     async function submit(e) {
       e && e.preventDefault();
       if (controller) { controller.abort(); controller = null; setSending(false); return; }
-      const text = ta.value.trim();
-      if (!text) return;
-      if (needsModel()) return;
-      S().update((s) => s.chat.push({ role: 'user', content: text }));
-      ta.value = ''; autoGrow();
-      render();
+      const text = ta.value.trim(); if (!text) return; if (needsModel()) return;
+      const c = curConvo();
+      c.messages.push({ role: 'user', content: text });
+      if (!c.title) c.title = text.slice(0, 36);
+      c.updated = Date.now(); S().save();
+      ta.value = ''; autoGrow(); render();
       const live = el('div', { className: 'bubble assistant' });
       live.innerHTML = '<span class="cursor">▍</span>';
       log.append(live); log.scrollTop = log.scrollHeight;
-      controller = new AbortController();
-      setSending(true);
-      const messages = [{ role: 'system', content: persona() }].concat(msgs());
+      controller = new AbortController(); setSending(true);
+      const messages = [{ role: 'system', content: persona() }].concat(c.messages);
       const res = await O().chat({
-        messages, signal: controller.signal,
+        messages, temperature: S().pref('temperature'), signal: controller.signal,
         onChunk: (_d, full) => { live.innerHTML = mdLite(full) + '<span class="cursor">▍</span>'; log.scrollTop = log.scrollHeight; }
       });
       controller = null; setSending(false);
       if (!res.ok) { live.innerHTML = '<span class="err">' + esc(res.error) + '</span>'; return; }
-      if (res.content) S().update((s) => s.chat.push({ role: 'assistant', content: res.content }));
+      if (res.content) { c.messages.push({ role: 'assistant', content: res.content }); c.updated = Date.now(); S().save(); }
       render();
     }
 
@@ -89,7 +139,9 @@ window.HIA = window.HIA || {};
     ta.addEventListener('input', autoGrow);
     ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
     row.addEventListener('submit', submit);
-    clear.addEventListener('click', () => { S().update((s) => s.chat = []); render(); });
+    menuBtn.addEventListener('click', openDrawer);
+    backdrop.addEventListener('click', closeDrawer);
+    newBtn.addEventListener('click', startNew);
     ctx.addCleanup(() => controller && controller.abort());
     render();
   }
@@ -486,24 +538,66 @@ window.HIA = window.HIA || {};
         sec.append(label('hia will call you'), name);
       }));
 
+      // --- hia / chat behaviour ---
+      body.append(section('hia & chat', HIA.icon('chat'), (sec) => {
+        const pers = el('textarea', { className: 'field area', rows: 3, placeholder: 'Default: a warm, concise helper. Override hia\'s personality here…' });
+        pers.value = S().pref('personality') || '';
+        pers.addEventListener('input', () => S().setPref('personality', pers.value));
+        sec.append(label('Personality (system prompt)'), pers);
+        sec.append(slider('Creativity (temperature)', 0, 1.2, 0.1, S().pref('temperature'), (v) => v.toFixed(1), (v) => S().setPref('temperature', v)));
+        sec.append(el('button', { className: 'btn ghost block', text: 'Clear all conversations', onclick: () => { S().update((s) => { s.conversations = []; s.currentConvo = ''; }); toast('Conversations cleared'); } }));
+      }));
+
       // --- Appearance ---
       body.append(section('Appearance', HIA.icon('sparkles'), (sec) => {
         const sw = el('div', { className: 'chip-row wrap' });
         [['Blue', '#0a84ff', '#bf5af2'], ['Violet', '#bf5af2', '#0a84ff'], ['Pink', '#ff375f', '#ff9f0a'],
-         ['Mint', '#30d158', '#0a84ff'], ['Sunset', '#ff9f0a', '#ff375f'], ['Mono', '#8e8e93', '#c7c7cc']]
+         ['Mint', '#30d158', '#0a84ff'], ['Sunset', '#ff9f0a', '#ff375f'], ['Cyan', '#64d2ff', '#5e5ce6'], ['Mono', '#8e8e93', '#c7c7cc']]
           .forEach(([n, a, b]) => {
             const c = el('button', { className: 'swatch-pill' + (a === S().get('accent') ? ' on' : '') });
-            c.style.background = 'linear-gradient(135deg,' + a + ',' + b + ')';
-            c.title = n;
+            c.style.background = 'linear-gradient(135deg,' + a + ',' + b + ')'; c.title = n;
             c.addEventListener('click', () => { S().set('accent', a); S().set('accent2', b); HIA.shell.applyTheme(); render(); });
             sw.append(c);
           });
         sec.append(label('Accent'), sw);
+        sec.append(label('Wallpaper'), seg(['aurora', 'mesh', 'minimal', 'mono'], S().pref('wallpaper'), (v) => { S().setPref('wallpaper', v); HIA.shell.applyPrefs(); }));
+        sec.append(slider('Glass blur', 0, 40, 2, S().pref('blur'), (v) => v + 'px', (v) => { S().setPref('blur', v); HIA.shell.applyPrefs(); }));
       }));
 
-      // --- Data ---
-      body.append(section('Data & reset', HIA.icon('trash'), (sec) => {
-        sec.append(el('button', { className: 'btn ghost block', text: 'Clear chat history', onclick: () => { S().update((s) => s.chat = []); toast('Chat cleared'); } }));
+      // --- Accessibility ---
+      body.append(section('Accessibility', HIA.icon('eye'), (sec) => {
+        sec.append(toggle('Reduce motion', S().pref('reduceMotion'), (v) => { S().setPref('reduceMotion', v); HIA.shell.applyPrefs(); }));
+        sec.append(toggle('High contrast', S().pref('contrast'), (v) => { S().setPref('contrast', v); HIA.shell.applyPrefs(); }));
+        sec.append(slider('Text size', 0.85, 1.35, 0.05, S().pref('uiScale'), (v) => Math.round(v * 100) + '%', (v) => { S().setPref('uiScale', v); HIA.shell.applyPrefs(); }));
+      }));
+
+      // --- Apps (AI-built, editable) ---
+      body.append(section('Apps', HIA.icon('grid'), (sec) => {
+        sec.append(el('button', { className: 'btn block', html: HIA.icon('wand') + 'Create an app with AI', onclick: () => HIA.shell.makeAppFlow() }));
+        const apps = S().s.customApps;
+        if (!apps.length) { sec.append(el('p', { className: 'muted', text: 'No custom apps yet. Describe one and hia will build it — then ask it to change it any time.' })); }
+        else {
+          const list = el('div', { className: 'list' });
+          apps.forEach((a) => {
+            const item = el('div', { className: 'list-item static' });
+            item.append(el('span', { className: 'li-ic', html: HIA.icon(a.icon || 'wand') }),
+              el('div', { className: 'li-main' }, el('div', { className: 'li-title', text: a.name })),
+              el('button', { className: 'icon-btn', html: HIA.icon('chevron'), title: 'Open', onclick: () => HIA.shell.openApp(a.id) }),
+              el('button', { className: 'icon-btn', html: HIA.icon('wand'), title: 'Edit with AI', onclick: () => HIA.shell.editAppFlow(a.id) }),
+              el('button', { className: 'icon-btn danger', html: HIA.icon('trash'), title: 'Delete', onclick: () => { S().update((s) => s.customApps = s.customApps.filter((x) => x.id !== a.id)); HIA.shell.refreshChrome(); render(); } }));
+            list.append(item);
+          });
+          sec.append(list);
+        }
+      }));
+
+      // --- Data (export / import / reset) ---
+      body.append(section('Data', HIA.icon('download'), (sec) => {
+        sec.append(el('p', { className: 'muted', text: 'Moving to a new version or a new web address (origin) wipes on-device storage. Export first, then import into the new one.' }));
+        sec.append(el('button', { className: 'btn block', html: HIA.icon('download') + 'Export my data', onclick: () => HIA.shell.exportData() }));
+        const fileIn = el('input', { type: 'file', accept: 'application/json,.json', style: { display: 'none' } });
+        fileIn.addEventListener('change', () => { const f = fileIn.files[0]; if (f) HIA.shell.importData(f); });
+        sec.append(el('button', { className: 'btn ghost block', html: HIA.icon('upload') + 'Import data', onclick: () => fileIn.click() }), fileIn);
         sec.append(el('button', { className: 'btn ghost block danger', text: 'Erase everything & restart', onclick: () => {
           if (confirm('Erase all hiaOS data on this device?')) { S().reset(); location.reload(); }
         } }));
@@ -511,9 +605,8 @@ window.HIA = window.HIA || {};
 
       // --- About ---
       body.append(section('About', HIA.icon('home'), (sec) => {
-        sec.append(el('p', { className: 'muted', html:
-          'hiaOS for iPhone — a pocket OS powered by Ollama Cloud.<br>Add to Home Screen via the Share sheet for the full-screen app.' }));
-        sec.append(el('div', { className: 'muted small', text: 'v1.0 · ' + (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'Installed' : 'In browser') }));
+        sec.append(el('p', { className: 'muted', html: 'hiaOS for iPhone — a pocket OS powered by Ollama Cloud. Add to Home Screen via the Share sheet for the full-screen app.' }));
+        sec.append(el('div', { className: 'muted small', text: 'v2.0 · ' + (window.matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'Installed' : 'In browser') }));
       }));
     }
     function section(title, icon, fill) {
@@ -522,20 +615,204 @@ window.HIA = window.HIA || {};
       const inner = el('div', { className: 'sec-body' }); fill(inner); s.append(inner); return s;
     }
     function label(t) { return el('div', { className: 'field-label', text: t }); }
+    function toggle(text, val, onchange) {
+      const wrap = el('div', { className: 'row-toggle' });
+      const sw = el('button', { className: 'switch' + (val ? ' on' : '') });
+      sw.append(el('span', { className: 'knob' }));
+      sw.addEventListener('click', () => { val = !val; sw.classList.toggle('on', val); onchange(val); });
+      wrap.append(el('span', { text }), el('span', { className: 'spacer' }), sw); return wrap;
+    }
+    function slider(text, min, max, step, val, fmt, onchange) {
+      const wrap = el('div', { className: 'row-slider' });
+      const head = el('div', { className: 'rs-head' });
+      const out = el('span', { className: 'rs-val', text: fmt(val) });
+      head.append(el('span', { text }), el('span', { className: 'spacer' }), out);
+      const r = el('input', { type: 'range', className: 'slider', min, max, step, value: val });
+      r.addEventListener('input', () => { const v = +r.value; out.textContent = fmt(v); onchange(v); });
+      wrap.append(head, r); return wrap;
+    }
+    function seg(opts, cur, onchange) {
+      const s = el('div', { className: 'seg' });
+      opts.forEach((o) => s.append(el('button', { className: 'seg-btn' + (o === cur ? ' on' : ''), text: o[0].toUpperCase() + o.slice(1), onclick: () => { cur = o; s.querySelectorAll('.seg-btn').forEach((x) => x.classList.toggle('on', x.textContent.toLowerCase() === o)); onchange(o); } })));
+      return s;
+    }
     render();
   }
 
+  /* ============================ Browser ============================ */
+  function buildBrowser(body, ctx) {
+    bind();
+    body.classList.add('app-browser');
+    const bar = el('div', { className: 'br-bar' });
+    const back = el('button', { className: 'br-nav', html: HIA.icon('arrowL'), title: 'Back' });
+    const fwd = el('button', { className: 'br-nav', html: HIA.icon('arrowR'), title: 'Forward' });
+    const reload = el('button', { className: 'br-nav', html: HIA.icon('refresh'), title: 'Reload' });
+    const form = el('form', { className: 'br-urlform' });
+    const url = el('input', { className: 'br-url', type: 'text', placeholder: 'Search or enter address', autocapitalize: 'off', autocorrect: 'off', spellcheck: false });
+    form.append(url);
+    bar.append(back, fwd, reload, form);
+    const stage = el('div', { className: 'br-stage' });
+    const frame = el('iframe', { className: 'br-frame', sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox' });
+    const start = el('div', { className: 'br-start' });
+    stage.append(start, frame);
+    const foot = el('div', { className: 'br-foot' });
+    const safari = el('button', { className: 'btn ghost small', html: HIA.icon('safari') + 'Open in Safari', onclick: () => window.open(current || 'https://duckduckgo.com/', '_blank', 'noopener') });
+    foot.append(el('span', { className: 'muted small', text: 'Some sites block embedding →' }), safari);
+    body.append(bar, stage, foot);
+
+    let hist = [], idx = -1, current = '';
+    function buildStart() {
+      start.innerHTML = '';
+      start.append(el('div', { className: 'br-start-h', html: HIA.icon('compass') + '<b>Browser</b>' }));
+      start.append(el('p', { className: 'muted', text: 'Type a URL or search. Embedded pages run sandboxed; sites that refuse framing can be opened in Safari.' }));
+      const grid = el('div', { className: 'br-links' });
+      [['DuckDuckGo', 'https://duckduckgo.com/'], ['Wikipedia', 'https://wikipedia.org/'], ['Hacker News', 'https://news.ycombinator.com/'],
+       ['MDN', 'https://developer.mozilla.org/'], ['GitHub', 'https://github.com/'], ['Ollama', 'https://ollama.com/']]
+        .forEach(([n, u]) => grid.append(el('button', { className: 'br-link', text: n, onclick: () => go(u) })));
+      start.append(grid);
+    }
+    function norm(v) {
+      v = v.trim(); if (!v) return '';
+      if (/^https?:\/\//i.test(v)) return v;
+      if (/^[\w-]+(\.[\w-]+)+(\/|$|:|\?)/.test(v)) return 'https://' + v;
+      return 'https://duckduckgo.com/?q=' + encodeURIComponent(v);
+    }
+    function show(u) {
+      current = u; url.value = u;
+      if (u) { frame.src = u; frame.style.display = 'block'; start.style.display = 'none'; }
+      else { frame.removeAttribute('src'); frame.style.display = 'none'; start.style.display = 'flex'; }
+      back.disabled = idx <= 0; fwd.disabled = idx >= hist.length - 1;
+    }
+    function go(v) { const u = norm(v); if (!u) return; hist = hist.slice(0, idx + 1); hist.push(u); idx = hist.length - 1; show(u); }
+    form.addEventListener('submit', (e) => { e.preventDefault(); url.blur(); go(url.value); });
+    back.addEventListener('click', () => { if (idx > 0) { idx--; show(hist[idx]); } });
+    fwd.addEventListener('click', () => { if (idx < hist.length - 1) { idx++; show(hist[idx]); } });
+    reload.addEventListener('click', () => { if (current) { frame.src = 'about:blank'; setTimeout(() => (frame.src = current), 30); } });
+    buildStart(); show('');
+  }
+
+  /* ============================ AI-built custom app (sandboxed) ============================ */
+  function buildCustomApp(app, body) {
+    bind();
+    body.classList.add('app-custom');
+    const frame = el('iframe', { className: 'app-frame', sandbox: 'allow-scripts allow-popups' });
+    frame.setAttribute('srcdoc', app.html || '<!doctype html><body style="margin:0;font-family:system-ui;color:#fff;background:#111;display:grid;place-items:center;height:100vh">Empty app</body>');
+    body.append(frame);
+  }
+
+  /* ============================ Studio (AI app maker) ============================ */
+  function buildStudio(body, ctx) {
+    bind();
+    body.classList.add('app-pad');
+    function render() {
+      body.innerHTML = '';
+      body.append(el('h2', { text: 'Studio' }));
+      body.append(el('p', { className: 'muted', text: 'Describe an app and hia builds it. Open it, then tell hia how to change it — it edits the real app, in place.' }));
+      const ta = el('textarea', { className: 'field area', rows: 3, placeholder: 'e.g. a tip calculator · a dice roller · a breathing timer · a unit converter…' });
+      const go = el('button', { className: 'btn block', html: HIA.icon('wand') + 'Build it' });
+      go.addEventListener('click', async () => {
+        const p = ta.value.trim(); if (!p) return; if (needsModel()) return;
+        go.disabled = true; go.innerHTML = HIA.icon('wand') + 'Building…';
+        const r = await HIA.appAI.makeApp(p);
+        go.disabled = false; go.innerHTML = HIA.icon('wand') + 'Build it';
+        if (!r.ok) return toast(r.error);
+        ta.value = ''; HIA.shell.refreshChrome(); render(); HIA.shell.openApp(r.app.id); toast('Built “' + r.app.name + '”');
+      });
+      body.append(ta, go);
+      const apps = S().s.customApps;
+      if (apps.length) {
+        body.append(el('div', { className: 'field-label', text: 'Your apps' }));
+        const list = el('div', { className: 'list' });
+        apps.forEach((a) => {
+          const item = el('div', { className: 'list-item static' });
+          item.append(el('span', { className: 'li-ic', html: HIA.icon(a.icon || 'wand') }),
+            el('div', { className: 'li-main' }, el('div', { className: 'li-title', text: a.name }), el('div', { className: 'li-sub', text: a.prompt || '' })),
+            el('button', { className: 'icon-btn', html: HIA.icon('chevron'), title: 'Open', onclick: () => HIA.shell.openApp(a.id) }),
+            el('button', { className: 'icon-btn', html: HIA.icon('wand'), title: 'Edit with AI', onclick: () => HIA.shell.editAppFlow(a.id) }),
+            el('button', { className: 'icon-btn danger', html: HIA.icon('trash'), title: 'Delete', onclick: () => { S().update((s) => s.customApps = s.customApps.filter((x) => x.id !== a.id)); HIA.shell.refreshChrome(); render(); } }));
+          list.append(item);
+        });
+        body.append(list);
+      }
+    }
+    render();
+  }
+
+  /* ============================ AI engine: make & modify apps ============================ */
+  const ICON_NAMES = ['wand', 'calc', 'clock', 'note', 'globe', 'chat', 'sparkles', 'folder', 'brush', 'grid', 'compass', 'gear', 'sliders', 'home', 'eye'];
+  const APP_MAKER = 'You are the hiaOS APP MAKER. Output ONLY a raw JSON object (no markdown, no prose) describing a small self-contained iPhone app.\n' +
+    'Shape: {"name":"short name","icon":"one of: ' + ICON_NAMES.join(', ') + '","accent":"#RRGGBB","split":true,"html":"<!doctype html>…"}\n' +
+    'The html MUST be a COMPLETE standalone document with inline <style> and <script>. No external URLs/CDNs/fonts/images, no network, no localStorage. ' +
+    'Use the system-ui font, white text on a dark translucent background (the app floats on a glass panel — keep body background transparent or very dark). ' +
+    'Fill the viewport, mobile-first, big touch targets, smooth and good-looking. It must actually work. Keep total size under ~12KB.';
+
+  function parseJSON(text) {
+    if (!text) return null;
+    let t = String(text).replace(/```json/gi, '').replace(/```/g, '').trim();
+    try { return JSON.parse(t); } catch (e) {}
+    const m = t.match(/\{[\s\S]*\}/);
+    if (m) { try { return JSON.parse(m[0]); } catch (e) {} }
+    return null;
+  }
+  function sanitizeCustomApp(o, prompt) {
+    if (!o || typeof o !== 'object' || typeof o.html !== 'string' || o.html.length < 20) return null;
+    return {
+      id: 'u' + Date.now() + Math.random().toString(36).slice(2, 5),
+      name: (typeof o.name === 'string' && o.name.trim()) ? o.name.trim().slice(0, 24) : 'New App',
+      icon: ICON_NAMES.indexOf(o.icon) >= 0 ? o.icon : 'wand',
+      accent: /^#[0-9a-f]{6}$/i.test(o.accent || '') ? o.accent : '#bf5af2',
+      split: o.split !== false,
+      html: o.html,
+      prompt: prompt || '',
+      updated: Date.now()
+    };
+  }
+  HIA.appAI = {
+    async makeApp(prompt) {
+      const r = await O().generate({ messages: [{ role: 'system', content: APP_MAKER }, { role: 'user', content: prompt }], json: true, temperature: 0.5 });
+      if (!r.ok) return { ok: false, error: r.error };
+      const app = sanitizeCustomApp(parseJSON(r.content), prompt);
+      if (!app) return { ok: false, error: 'hia didn\'t return a valid app — try rephrasing.' };
+      S().update((s) => s.customApps.push(app));
+      return { ok: true, app };
+    },
+    // MODIFY an already-built app: feed the current app to the model + the change.
+    async editApp(id, instruction) {
+      const cur = S().s.customApps.find((a) => a.id === id);
+      if (!cur) return { ok: false, error: 'App not found' };
+      const sys = APP_MAKER + '\nYou are MODIFYING an existing app. Apply the requested change while keeping everything that already works. Return the FULL updated JSON object.';
+      const user = 'Current app JSON:\n' + JSON.stringify({ name: cur.name, icon: cur.icon, accent: cur.accent, split: cur.split, html: cur.html }) +
+        '\n\nChange requested: ' + instruction;
+      const r = await O().generate({ messages: [{ role: 'system', content: sys }, { role: 'user', content: user }], json: true, temperature: 0.4 });
+      if (!r.ok) return { ok: false, error: r.error };
+      const next = sanitizeCustomApp(parseJSON(r.content), cur.prompt);
+      if (!next) return { ok: false, error: 'hia didn\'t return a valid update — try rephrasing.' };
+      next.id = cur.id;
+      next.prompt = (cur.prompt ? cur.prompt + ' · ' : '') + instruction;
+      S().update((s) => { const i = s.customApps.findIndex((a) => a.id === id); if (i >= 0) s.customApps[i] = next; });
+      return { ok: true, app: next };
+    }
+  };
+
   /* ============================ Registry ============================ */
-  HIA.apps = {
+  HIA.builtins = {
     chat:      { id: 'chat', name: 'hia', icon: 'chat', accent: '#0a84ff', split: true, build: buildChat },
     ask:       { id: 'ask', name: 'Ask', icon: 'sparkles', accent: '#bf5af2', split: true, build: buildAsk },
     notes:     { id: 'notes', name: 'Notes', icon: 'note', accent: '#ff9f0a', split: true, build: buildNotes },
+    browser:   { id: 'browser', name: 'Browser', icon: 'compass', accent: '#0a84ff', split: true, build: buildBrowser },
     translate: { id: 'translate', name: 'Translate', icon: 'globe', accent: '#30d158', split: true, build: buildTranslate },
     calc:      { id: 'calc', name: 'Calculator', icon: 'calc', accent: '#8e8e93', split: true, build: buildCalc },
     timer:     { id: 'timer', name: 'Clock', icon: 'clock', accent: '#ff375f', split: true, build: buildTimer },
     files:     { id: 'files', name: 'Files', icon: 'folder', accent: '#5e5ce6', split: true, build: buildFiles },
     sketch:    { id: 'sketch', name: 'Sketch', icon: 'brush', accent: '#ff2d92', split: false, build: buildSketch },
+    studio:    { id: 'studio', name: 'Studio', icon: 'wand', accent: '#bf5af2', split: false, build: buildStudio },
     settings:  { id: 'settings', name: 'Settings', icon: 'gear', accent: '#64d2ff', split: false, build: buildSettings }
   };
-  HIA.appOrder = ['chat', 'ask', 'notes', 'translate', 'calc', 'timer', 'files', 'sketch', 'settings'];
+  HIA.builtinOrder = ['chat', 'ask', 'notes', 'browser', 'translate', 'calc', 'timer', 'files', 'sketch', 'studio', 'settings'];
+  HIA.customAppObj = (c) => ({ id: c.id, name: c.name, icon: c.icon || 'wand', accent: c.accent || '#bf5af2', split: c.split !== false, custom: true, build: (b) => buildCustomApp(c, b) });
+  HIA.getApp = (id) => HIA.builtins[id] || (function () { const c = S().s.customApps.find((x) => x.id === id); return c ? HIA.customAppObj(c) : null; })();
+  HIA.appList = () => HIA.builtinOrder.concat(S().s.customApps.map((c) => c.id));
+  // back-compat aliases (built-ins only)
+  HIA.apps = HIA.builtins;
+  HIA.appOrder = HIA.builtinOrder;
 })();

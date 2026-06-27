@@ -5,7 +5,9 @@ composed around **Ollama Cloud**. It's the iOS reimagining of
 [hiaOS](https://github.com/) — same liquid-glass soul, rebuilt for one hand and a
 tall screen.
 
-**▶︎ Live: https://hiaos-ios.github.io/hiaos/** — open in Safari on iPhone and *Add to Home Screen*.
+**▶︎ Live: https://hiaos-ios.github.io/iOS/** — open in Safari on iPhone and *Add to Home Screen*.
+
+> _Repo: `hiaOS-iOS/iOS`. After the org is renamed to **hiaOS-dev** (GitHub → org Settings → General → Rename), the URL becomes `https://hiaos-dev.github.io/iOS/`. Export your data first (Settings → Data) — the new origin starts empty._
 
 <p align="center"><img src="icons/icon-512.png" width="120" alt="hiaOS icon"></p>
 
@@ -32,15 +34,37 @@ tall screen.
 
 | App | Split? | What it does |
 |-----|:-----:|--------------|
-| **hia** | ✅ | Streaming AI chat with full conversation memory |
+| **hia** | ✅ | Multi-conversation streaming AI chat (drawer of chats, new/rename/delete, auto-titled) |
 | **Ask** | ✅ | One-shot question → one answer |
 | **Notes** | ✅ | Notes with AI Summarize / Improve / Expand |
+| **Browser** | ✅ | Sandboxed web view + search, with “Open in Safari” for sites that refuse framing |
 | **Translate** | ✅ | Translate text into 10 languages |
 | **Calculator** | ✅ | Order-of-operations calc (no `eval`) |
 | **Clock** | ✅ | Timer + stopwatch with laps & a beep |
 | **Files** | ✅ | Local text files |
 | **Sketch** | ⬜ | Finger drawing on canvas (full-screen) |
-| **Settings** | ⬜ | Model, key, accent theme, data (full-screen) |
+| **Studio** | ⬜ | Describe an app → hia **builds** it; then ask hia to **modify** it in place |
+| **Settings** | ⬜ | Model/key, personality + creativity, accent + wallpaper, accessibility, app manager, data |
+
+## Build & modify your own apps (Studio)
+
+Open **Studio**, describe an app (“a tip calculator”, “a dice roller”), and hia
+generates a complete sandboxed mini-app that joins your home screen, taskbar and
+launchpad. Open it, tap the **✦ wand** in its title bar (or *Edit with AI*), and
+describe a change — hia rewrites the **already-built** app in place. (The same
+*modify an existing app* capability also ships in the desktop macOS hiaOS.)
+
+## Conversations
+
+**hia** keeps multiple conversations: tap the ☰ button for the drawer to switch,
+start, rename (auto-titled from your first message) or delete chats.
+
+## Backup & moving versions (export / import)
+
+Storage is per-origin, so updating to a new web address (e.g. after the org
+rename below) starts fresh. In **Settings → Data**, **Export my data** to a JSON
+file and **Import** it into the new install to carry over your conversations,
+notes, files, custom apps and preferences.
 
 ## Setup
 

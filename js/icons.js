@@ -31,7 +31,18 @@ window.HIA = window.HIA || {};
     key: '<circle cx="8" cy="14" r="4"/><path d="M11 11l8-8M16 3l3 3M14.5 5.5 17 8"/>',
     home: '<path d="M4 11 12 4l8 7"/><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"/>',
     eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.6"/>',
-    undo: '<path d="M9 7 4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12h-3"/>'
+    undo: '<path d="M9 7 4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12h-3"/>',
+    wand: '<path d="M5 19l9-9"/><path d="M14 4.5l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1 1-2.2Z"/><path d="M19 13l.6 1.4 1.4.6-1.4.6L19 17l-.6-1.4-1.4-.6 1.4-.6.6-1.4Z"/>',
+    edit: '<path d="M5 19h14"/><path d="M14.5 5.5l3 3L9 17l-3.5.5L6 14l8.5-8.5Z"/>',
+    download: '<path d="M12 4v11M8 11l4 4 4-4"/><path d="M5 20h14"/>',
+    upload: '<path d="M12 20V9M8 13l4-4 4 4"/><path d="M5 4h14"/>',
+    grid: '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>',
+    compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5 5-2Z" fill="currentColor" stroke="none"/>',
+    arrowL: '<path d="M15 5l-7 7 7 7"/>',
+    arrowR: '<path d="M9 5l7 7-7 7"/>',
+    dots: '<circle cx="6" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.6" fill="currentColor" stroke="none"/>',
+    sliders: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/>',
+    safari: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2.2 4.8-4.8 2.2 2.2-4.8 4.8-2.2Z" fill="currentColor" stroke="none"/>'
   };
   HIA.icon = function (name, cls) {
     const body = P[name] || P.orbit;

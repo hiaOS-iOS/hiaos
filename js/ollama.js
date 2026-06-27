@@ -50,27 +50,45 @@ window.HIA = window.HIA || {};
     }
   }
 
-  // One-shot, non-streaming. `json:true` asks the model for strict JSON.
-  async function generate({ messages, model: mdl, json, temperature }) {
+  // One-shot result, but STREAMED under the hood and accumulated. Streaming keeps
+  // the connection producing data continuously, so a long generation never trips a
+  // proxy/gunicorn idle timeout the way a silent non-streaming request would.
+  // `json:true` asks the model for strict JSON.
+  async function generate({ messages, model: mdl, json, temperature, signal }) {
+    let full = '';
     try {
       const body = {
         model: mdl || model(),
         messages,
-        stream: false,
+        stream: true,
         options: { temperature: temperature == null ? 0.7 : temperature }
       };
       if (json) body.format = 'json';
       const res = await fetch(base() + '/api/chat', {
-        method: 'POST', headers: headers(), body: JSON.stringify(body)
+        method: 'POST', headers: headers(), signal, body: JSON.stringify(body)
       });
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         const t = await res.text().catch(() => '');
         return { ok: false, error: 'Ollama ' + res.status + (t ? ': ' + t.slice(0, 200) : ''), content: '' };
       }
-      const data = await res.json();
-      return { ok: true, content: (data.message && data.message.content) || '' };
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 1);
+          if (!line) continue;
+          try { const j = JSON.parse(line); if (j.message && j.message.content) full += j.message.content; } catch (e) {}
+        }
+      }
+      return { ok: true, content: full };
     } catch (err) {
-      return { ok: false, error: netErr(err), content: '' };
+      return { ok: false, error: netErr(err), content: full };
     }
   }
 
