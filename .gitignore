@@ -1,0 +1,9 @@
+# macOS / exFAT AppleDouble noise (this project lives on an external drive)
+.DS_Store
+._*
+**/._*
+
+# Tooling
+node_modules/
+.claude/
+*.log

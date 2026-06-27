@@ -1,0 +1,20 @@
+{
+  "name": "hiaOS",
+  "short_name": "hiaOS",
+  "description": "A pocket operating system for iPhone, powered by Ollama Cloud.",
+  "start_url": "./",
+  "scope": "./",
+  "id": "hiaos-ios",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "portrait",
+  "background_color": "#06060c",
+  "theme_color": "#0a0a14",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "icons/icon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}
