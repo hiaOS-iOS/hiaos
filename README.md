@@ -5,9 +5,13 @@ composed around **Ollama Cloud**. It's the iOS reimagining of
 [hiaOS](https://github.com/) — same liquid-glass soul, rebuilt for one hand and a
 tall screen.
 
-**▶︎ Live: https://hiaos-ios.github.io/iOS/** — open in Safari on iPhone and *Add to Home Screen*.
+**▶︎ Live: https://hiaos-dev.github.io/iOS/** — open in Safari on iPhone and *Add to Home Screen*.
 
-> _Repo: `hiaOS-iOS/iOS`. After the org is renamed to **hiaOS-dev** (GitHub → org Settings → General → Rename), the URL becomes `https://hiaos-dev.github.io/iOS/`. Export your data first (Settings → Data) — the new origin starts empty._
+> _Repo: `hiaOS-dev/iOS`. Each web address is a separate origin with its own storage — if you used the old `hiaos-ios.github.io` URL, Export your data there (Settings → Data) and Import it here._
+
+## Connect (important)
+
+Browsers **cannot call `ollama.com` directly** (no CORS). So in **Settings → Model & connection**, set **Base URL** to your proxy and leave the **API key blank** (the proxy injects it). There's a **Test connection** button right there to confirm. This repo's companion proxy is the Flask `detector-api` service (see `proxy/`).
 
 <p align="center"><img src="icons/icon-512.png" width="120" alt="hiaOS icon"></p>
 
